@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cadence Chess - WebSocket Test</title>
+</head>
+<body>
+    <h1>Cadence Chess</h1>
+
+    <p id="status">Connecting...</p>
+
+    <input id="message" placeholder="Type a test message">
+    <button id="send">Send</button>
+
+    <h2>Messages</h2>
+    <ul id="messages"></ul>
+
+    <script>
+        const status = document.getElementById("status");
+        const messages = document.getElementById("messages");
+        const input = document.getElementById("message");
+        const send = document.getElementById("send");
+
+        const socket = new WebSocket(
+            `ws://${location.host}/ws`
+        );
+
+        socket.onopen = () => {
+            status.textContent = "Connected";
+        };
+
+        socket.onmessage = (event) => {
+            const item = document.createElement("li");
+            item.textContent = event.data;
+            messages.appendChild(item);
+        };
+
+        socket.onclose = () => {
+            status.textContent = "Disconnected";
+        };
+
+        socket.onerror = () => {
+            status.textContent = "Connection error";
+        };
+
+        send.addEventListener("click", () => {
+            if (socket.readyState !== WebSocket.OPEN) {
+                return;
+            }
+
+            socket.send(input.value);
+            input.value = "";
+        });
+    </script>
+</body>
+</html>
