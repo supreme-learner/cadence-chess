@@ -1,16 +1,40 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Cadence Chess - WebSocket Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cadence Chess - Room Test</title>
+    <style>
+        body {
+            max-width: 700px;
+            margin: 40px auto;
+            padding: 0 16px;
+            font-family: sans-serif;
+        }
+
+        input, button {
+            padding: 10px;
+            margin: 4px 0;
+        }
+
+        #status { font-weight: bold; }
+        #messages { overflow-wrap: anywhere; }
+    </style>
 </head>
 <body>
-    <h1>Cadence Chess</h1>
+    <h1>Cadence Chess ♟️</h1>
+
+    <label for="room">Room ID:</label>
+    <input id="room" value="room-a" maxlength="40">
+    <button id="join" disabled>Join room</button>
 
     <p id="status">Connecting...</p>
 
-    <input id="message" placeholder="Type a test message">
-    <button id="send">Send</button>
+    <hr>
+
+    <input id="message" placeholder="Type a test message" disabled>
+    <button id="send" disabled>Send</button>
 
     <h2>Messages</h2>
     <ul id="messages"></ul>
@@ -18,38 +42,97 @@
     <script>
         const status = document.getElementById("status");
         const messages = document.getElementById("messages");
+        const roomInput = document.getElementById("room");
+        const joinButton = document.getElementById("join");
         const input = document.getElementById("message");
         const send = document.getElementById("send");
 
-        const socket = new WebSocket(
-            `ws://${location.host}/ws`
-        );
+        const socket = new WebSocket(`ws://${location.host}/ws`);
+
+        let joinedRoom = null;
+
+        function addMessage(text) {
+            const item = document.createElement("li");
+            item.textContent = text;
+            messages.appendChild(item);
+        }
+
+        function updateControls() {
+            const connected = socket.readyState === WebSocket.OPEN;
+            joinButton.disabled = !connected || joinedRoom !== null;
+            roomInput.disabled = !connected || joinedRoom !== null;
+            input.disabled = joinedRoom === null;
+            send.disabled = joinedRoom === null;
+        }
 
         socket.onopen = () => {
-            status.textContent = "Connected";
+            status.textContent = "Connected. Choose a room.";
+            updateControls();
         };
 
         socket.onmessage = (event) => {
-            const item = document.createElement("li");
-            item.textContent = event.data;
-            messages.appendChild(item);
+            const text = event.data;
+
+            if (text.startsWith("JOINED ")) {
+                joinedRoom = text.substring(7);
+                status.textContent = `Joined room: ${joinedRoom}`;
+                addMessage(`You joined ${joinedRoom}`);
+                updateControls();
+                return;
+            }
+
+            if (text.startsWith("ERROR ")) {
+                status.textContent = text;
+                addMessage(text);
+                return;
+            }
+
+            addMessage(text);
         };
 
         socket.onclose = () => {
-            status.textContent = "Disconnected";
+            status.textContent = "Disconnected. Refresh to reconnect.";
+            joinedRoom = null;
+            updateControls();
         };
 
         socket.onerror = () => {
             status.textContent = "Connection error";
         };
 
-        send.addEventListener("click", () => {
-            if (socket.readyState !== WebSocket.OPEN) {
+        joinButton.addEventListener("click", () => {
+            const room = roomInput.value.trim();
+
+            if (!/^[a-zA-Z0-9_-]{1,40}$/.test(room)) {
+                status.textContent =
+                    "Room IDs must use letters, numbers, _ or - (max 40).";
                 return;
             }
 
-            socket.send(input.value);
+            socket.send(`JOIN ${room}`);
+            status.textContent = `Joining ${room}...`;
+        });
+
+        send.addEventListener("click", () => {
+            if (socket.readyState !== WebSocket.OPEN ||
+                joinedRoom === null) {
+                return;
+            }
+
+            const text = input.value.trim();
+
+            if (text.length === 0) {
+                return;
+            }
+
+            socket.send(text);
             input.value = "";
+        });
+
+        input.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" && !send.disabled) {
+                send.click();
+            }
         });
     </script>
 </body>
